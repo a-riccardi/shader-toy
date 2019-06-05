@@ -1,14 +1,18 @@
 ﻿Shader "ShaderToy/AdvancedPOM/ContactRefinementPOM" {
 	Properties {
 		_TintColor ("Tint Color", Color) = (.5, .5, .5, .5)
-		_BaseColorMap ("Base Color", 2D) = "white" {}
-		_NormalMap("Normal", 2D) = "bump" {}
+		_BaseColorMap ("Base Color, Emission (A)", 2D) = "white" {}
+		_NormalMap("Normal (RGB)", 2D) = "bump" {}
 		_MixMap("Roughness(R) Height(G) AO (B) Metalness (A)", 2D) = "bump" {}
 		_RoughnessF ("Roughness Intensity", Range(0,2)) = 1.0
 		_NormalF ("Normal Intensity", Range(0,10)) = 1.0
 		_AOF ("Ambient Occlusion Intensity", Range(0, 2)) = 1.0
+		_EmissiveF("Emissive Intensity", Range(0, 100)) = 1.0
+		_EmissiveColor("Emissive Color", Color) = (1.0, 1.0, 1.0, 1.0)
 		[Toggle(METALLIC)]
 		_Metallic("Use Metalness map?", Float) = 0
+		[Toggle(EMISSIVE)]
+		_Emissive("Use Emissive map?", Float) = 0
 		[Toggle(CONTACT_REFINEMENT)]
 		_CRPOM("Enable Contact Refinement POM?", Float) = 0
 		[Toggle(INTERSECTION_LINEAR_INTERPOLATION)]
@@ -24,7 +28,6 @@
 		_OutputDepth("Output Depth in BaseColor? (for debug purposes)", Float) = 0
 		_Depth("Depth Scale", Range(0.0, 1.0)) = 0.5
 		_MaxDepth("Max Depth Value", Float) = 1.0
-		//_HeightMask("Mixmap Height Channel", Vector)  = (0.0, 1.0, 0.0 ,0.0)
 	}
 	SubShader {
 		Tags { "RenderType"="Opaque" }
@@ -35,6 +38,7 @@
 		#pragma target 3.5
 		#pragma shader_feature DEPTH_MAP
 		#pragma shader_feature METALLIC
+		#pragma shader_feature EMISSIVE
 		#pragma shader_feature INTERSECTION_LINEAR_INTERPOLATION
 		#pragma shader_feature CONTACT_REFINEMENT
 		#pragma shader_feature SELFSHADOWS_SOFT
@@ -44,7 +48,7 @@
 		#include "UnityCG.cginc"
 		#include "AutoLight.cginc"
 		#include "../../../Shaders/ParallaxOcclusionMapping.cginc"
-		#include "UnityShadowLibrary.cginc"
+		//#include "UnityShadowLibrary.cginc"
 
 		#ifdef _QUALITY_ULTRA
 		#define CR_LAYER (64.0)
@@ -70,50 +74,54 @@
 			float2 uv_BaseColorMap;
 			float3 viewDir;
 			float3 worldPos;
+#ifdef SELFSHADOWS_SOFT
 			float3 worldToTangent0;
 			float3 worldToTangent1;
 			float3 worldToTangent2;
+#endif
 		};
 
 		//UNITY_DECLARE_SHADOWMAP(_ShadowMapTex);
 
-		sampler2D _BaseColorMap;
-		sampler2D _NormalMap;
-		sampler2D _MixMap;
+		uniform sampler2D _BaseColorMap;
+		uniform sampler2D _NormalMap;
+		uniform sampler2D _MixMap;
 
-		half _RoughnessF;
-		half _NormalF;
-		half _AOF;
-		half _Metallic;
-		float _DepthMap;
-		float _CRPOM;
-		float _ILI;
-		float _SShadowsSoft;
-		float _SSPow;
-		float _Depth;
-		float _MaxDepth;
-		float _Quality;
-		float4 _HeightMask;
+		uniform half _RoughnessF;
+		uniform half _NormalF;
+#ifdef EMISSIVE
+		uniform float _EmissiveF;
+#endif
+		uniform half _AOF;
+		uniform half _Metallic;
+		uniform half _Emissive;
+		uniform float _DepthMap;
+		uniform float _CRPOM;
+		uniform float _ILI;
+		uniform float _SShadowsSoft;
+		uniform float _SSPow;
+		uniform float _Depth;
+		uniform float _MaxDepth;
+		uniform float _Quality;
+		uniform float4 _HeightMask;
 
-		fixed4 _TintColor;
-
+		uniform fixed4 _TintColor;
+#ifdef EMISSIVE
+		uniform fixed4 _EmissiveColor;
+#endif
 		// Add instancing support for this shader. You need to check 'Enable Instancing' on materials that use the shader.
 		// See https://docs.unity3d.com/Manual/GPUInstancing.html for more information about instancing.
 		// #pragma instancing_options assumeuniformscaling
-		//UNITY_INSTANCING_BUFFER_START(Props)
+		UNITY_INSTANCING_BUFFER_START(Props)
 			// put more per-instance properties here
-		//UNITY_INSTANCING_BUFFER_END(Props)
+		UNITY_INSTANCING_BUFFER_END(Props)
 
 		void vert(inout appdata_full v, out Input o)
 		{
 			UNITY_INITIALIZE_OUTPUT(Input, o);
 
-			// really shouldn't have to do this, but looks like surface shaders are bugged
-			// and aren't passing the world normal to the surface shader with using:
-			// struct Input { float3 worldNormal; }
-			// luckily we have free float3 so we don't need another interpolator
-			float3 worldNormal = UnityObjectToWorldNormal(v.normal);
-
+#ifdef SELFSHADOWS_SOFT
+			//to transform the light position into tangent space, we'll need the world to tangent matrix
 			TANGENT_SPACE_ROTATION;
 
 			// calculate the full world to tangent matrix
@@ -121,28 +129,38 @@
 			o.worldToTangent0 = worldToTangent[0];
 			o.worldToTangent1 = worldToTangent[1];
 			o.worldToTangent2 = worldToTangent[2];
+#endif
 		}
 
 		void surf(Input IN, inout SurfaceOutputStandard o)
 		{
+			//compute partial derivatives for the uv. They're one of the expected parameter of the get_parallax_offset_uv function and are used to be able to sample the height map
+			//inside a branched loop
 			float4 dd = float4(ddx(IN.uv_BaseColorMap), ddy(IN.uv_BaseColorMap));
+			//initialize layerN variable. Based on conditional compilation, it will be initialized with different hard-coded values. A parameter could be exposed to finely tune the max step number
 			float layerN = 1.0;
 
 #ifdef CONTACT_REFINEMENT
 			layerN = CR_LAYER;
 #else
 			layerN = STR_LAYER;
+			//scale _Depth to account for different step size in different techniques and still give comparable results
 			_Depth *= 0.65;
 #endif
-			layerN = ceil(lerp(layerN * 2.0, layerN, abs(dot(float3(0.0, 0.0, 1.0), IN.viewDir))));
+			//change layerN based on view space tagency to the surface
+			//layerN = ceil(lerp(layerN * 2.0, layerN, abs(dot(float3(0.0, 0.0, 1.0), IN.viewDir))));
 
 #ifdef SELFSHADOWS_SOFT
+			//if self shadows are enabled, initialize light_ray variable with the tangent space direction of the light
 			float3 light_ray = normalize(mul(float3x3(IN.worldToTangent0, IN.worldToTangent1, IN.worldToTangent2), _WorldSpaceLightPos0.xyz));
+			//initialize self_shadow_attenuation factor. 0 = full shadow, 1 = full light
 			float self_shadow_attenuation = 1.0;
 #endif
 #ifdef OUTPUT_DEPTH
+			//if output depth is enabled, initialize depth_value variable
 			float depth_value = 0.0;
 #endif
+			//compute parallax-corrected uvs. see Assets/Shaders/ParallaxOcclusionmapping.cginc for more info
 			float2 parallax_uv = get_parallax_offset_uv(dd, layerN, IN.viewDir, IN.uv_BaseColorMap, _MixMap, HEIGHT_MASK, 0.0, _MaxDepth, _Depth
 #ifdef SELFSHADOWS_SOFT
 				, light_ray, self_shadow_attenuation
@@ -151,31 +169,50 @@
 				, depth_value
 #endif
 		);
-
-			fixed4 baseColor = tex2D(_BaseColorMap, parallax_uv) * _TintColor * 2.0;
+			//sample maps with parallax-corrected uvs
+			fixed4 baseColor = tex2D(_BaseColorMap, parallax_uv);
 			fixed3 normalColor = UnpackNormal(tex2D(_NormalMap, parallax_uv));
 			fixed4 mixColor = tex2D(_MixMap, parallax_uv);
 
-#ifdef SELFSHADOWS_SOFT			
+			baseColor.rgb *= _TintColor * 2.0;
+
+#ifdef SELFSHADOWS_SOFT		
+			//if self shadows are enabled, tune the result with _SSPow parameter
 			self_shadow_attenuation = pow(self_shadow_attenuation, _SSPow);
-			
+			//darken albedo with self_shadow_attenuation parameter
 			o.Albedo = baseColor.rgb * self_shadow_attenuation;
 #elif OUTPUT_DEPTH
+			//output depth_value in albedo channel
 			o.Albedo = float3(depth_value, depth_value, depth_value);
 #else
+			//if self shadows are disabled, just return baseColor as albedo
 			o.Albedo = baseColor.rgb;
 #endif
-			o.Normal = fixed3(normalColor.rg * _NormalF, normalColor.b);
+			//tune normal intensity
+			o.Normal = float3(normalColor.rg * _NormalF, normalColor.b);
 #ifdef METALLIC
+			//if the material has a metallic map, fill the channel with correct data
 			o.Metallic = mixColor.a;
 #else
+			//otherwise just set it to 0
 			o.Metallic = 0.0;
 #endif
+			//initialize smoothness as the inverse of roughness, modulated by _RoughnessF parameter
 			o.Smoothness = 1.0 - (mixColor.r * _RoughnessF);
+			//initialize occlusion with mixmap data modulated by _AOF parameter
 			o.Occlusion = mixColor.b * (2.0 - _AOF);
-			o.Alpha = baseColor.a;
+			//initialize alpha channel
+			o.Alpha = 1.0;
+			//initialize emission channel if present
+#ifdef EMISSIVE
+			o.Emission = baseColor.a * _EmissiveF * _EmissiveColor;
+#else
+			o.Emission = 0.0;
+#endif
 		}
 		ENDCG
+		// Test for correct shadow recection based on depth.
+		//NOTE this code is still heavy under development
 		/*
 		Pass {
 			Tags { "LightMode" = "ShadowCaster"	}
@@ -297,6 +334,6 @@
 		}
 		*/
 	}
-
+	//use ShadowCaster pass from Diffuse shader
 	Fallback "Diffuse"
 }
