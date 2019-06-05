@@ -1,15 +1,18 @@
-# Ignore everything in repository root 
-/*
+# Ignore everything
+*
+
+# But descend into directories
+!*/
 
 # Files to not ignore
 !/.gitignore
 #!/some_other_files
 
 # Folder to not ignore
-!/ShaderToy/Assets/AdvancedParallaxOcclusionMapping/Shaders/Git/
-!/ShaderToy/Assets/CyberpunkPixelFade/Shaders/Git/
-!/ShaderToy/Assets/FrameAnimator2D/Shaders/Git/
-!/ShaderToy/Assets/FreezePostProcess/Shaders/Git/
-!/ShaderToy/Assets/Shaders/
-!/ShaderToy/Assets/TerrainCrackingEffect/Shaders/Git/
-!/ShaderToy/Assets/VolumetricSnow/Shaders/Git/
+!/ShaderToy/Assets/AdvancedParallaxOcclusionMapping/Shaders/Git/**
+!/ShaderToy/Assets/CyberpunkPixelFade/Shaders/Git/**
+!/ShaderToy/Assets/FrameAnimator2D/Shaders/Git/**
+!/ShaderToy/Assets/FreezePostProcess/Shaders/Git/**
+!/ShaderToy/Assets/Shaders/**
+!/ShaderToy/Assets/TerrainCrackingEffect/Shaders/Git/**
+!/ShaderToy/Assets/VolumetricSnow/Shaders/Git/**
