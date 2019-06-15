@@ -32,7 +32,7 @@
 			#pragma fragment frag
 			
 			#include "UnityCG.cginc"
-			#include "../../Shaders/Utils.cginc"
+			#include "../../../Shaders/Utils.cginc"
 
 			struct appdata
 			{
@@ -106,7 +106,7 @@
 				opacity *= gradient;
 
 				//modulating density using the _ThicknessF exposed parameter
-				density = lerp(density*density*density*density*density, density, _ThicknessF); //avoiding a pow() operation, which tend to be quite computationally expensive
+				density = lerp(density*density*density*density*density, density, _ThicknessF); //avoiding a pow() operation, which tends to be quite computationally expensive
 				density = remap(density, 0.0, 1.0, 0.0, lerp(3.0, 0.75, _ThicknessF));
 
 				//modulate the normal strength by the ice _ThicknessF
@@ -135,7 +135,7 @@
 				//thick ice color is computed with a standard illumination equation: diffuse + specular + ambient
 				fixed4 thick_ice_color = _Color * NdotL + _Color * NdotV + _Color * 0.05;
 				
-				//final color is computed computed as a lerp between the thick ice color & the light color behind, based on the ice density and the overall opacity of the mask, both modulated by the thickness of the _IceTex alpha
+				//final color is computed as a lerp between the thick ice color & the light color behind, based on the ice density and the overall opacity of the mask, both modulated by the thickness of the _IceTex alpha
 				return saturate(lerp(light_color, thick_ice_color, clamp01(density * opacity * lerp(1.1, 0.8, ice_texture_color.a * 3))));
 			}
 			ENDCG

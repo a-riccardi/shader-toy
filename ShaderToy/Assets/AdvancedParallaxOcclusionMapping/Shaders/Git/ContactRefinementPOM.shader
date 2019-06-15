@@ -213,7 +213,7 @@
 		ENDCG
 		// Test for correct shadow recection based on depth.
 		//NOTE this code is still heavy under development
-		/*
+		
 		Pass {
 			Tags { "LightMode" = "ShadowCaster"	}
 
@@ -229,8 +229,10 @@
 			
 			#include "UnityCG.cginc"
 			#include "UnityStandardShadow.cginc"
-			#include "../../Shaders/ParallaxOcclusionMapping.cginc"
+			#include "../../../Shaders/ParallaxOcclusionMapping.cginc"
 			#define SAMPLE_DEPTH_VALUE_LOD
+
+			#define HEIGHT_MASK float4(0.0, 1.0, 0.0, 0.0)
 
 			struct VertexInput_contactRefinementPOM
 			{
@@ -268,24 +270,22 @@
 					UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(os);
 				#endif
 
-				o.tex = TRANSFORM_TEX(v.uv0, _MainTex);
-				float3 binormal = cross(normalize(v.normal), normalize(v.tangent.xyz)) * v.tangent.w;
-				float3x3 rotation = float3x3(v.tangent.xyz, binormal, v.normal);
-				o.viewDirForParallax = mul(rotation, ObjSpaceViewDir(v.vertex));
-
-				half3 viewDirForParallax = normalize(o.viewDirForParallax);
-				float2 parallax_uv = get_contact_refinement_parallax_offset_uv_lod(viewDirForParallax, o.tex.xy, _MixMap, float4(0, 1, 0, 0), 0.0, _MaxDepth, _Depth);
+				
 
 				//TRANSFER_SHADOW_CASTER_NOPOS(o,opos)
 
-				float offset = sample_depth_lod(_MixMap, float4(0, 1, 0, 0), float4(parallax_uv, 0, 0)); // tex2Dlod(_MixMap, float4(o.tex.xy, 0, 0)).g * get_depth(0.0, _MaxDepth, _Depth);
-				float3 normal = tex2Dlod(_NormalMap, float4(parallax_uv, 0, 0));
-				opos = UnityClipSpaceShadowCasterPos(v.vertex, v.normal); // float4(v.vertex.x, v.vertex.y - offset * 0.1, v.vertex.z, v.vertex.w), normal);
+				float offset = sample_depth_lod(_MixMap, HEIGHT_MASK, float4(v.uv0, 0, 0)); // tex2Dlod(_MixMap, float4(o.tex.xy, 0, 0)).g * get_depth(0.0, _MaxDepth, _Depth);
+				
+				opos = UnityClipSpaceShadowCasterPos(float4(v.vertex.x, v.vertex.y - (offset * 0.01), v.vertex.z, v.vertex.w), v.normal);
 				opos = UnityApplyLinearShadowBias(opos);
 			}
 
 			half4 fragShadowCaster_contactRefinementPOM(UNITY_POSITION(vpos), VertexOutputShadowCaster_contactRefinementPOM i) : SV_Target
 			{
+				return 0;
+			}
+				/*
+
 	//#if defined(UNITY_STANDARD_USE_SHADOW_UVS)
 				half3 viewDirForParallax = normalize(i.viewDirForParallax);
 				i.tex.xy = get_contact_refinement_parallax_offset_uv(viewDirForParallax, i.tex.xy, _MixMap, float4(0, 1, 0, 0), 0.0, _MaxDepth, _Depth);
@@ -329,11 +329,11 @@
 
 				SHADOW_CASTER_FRAGMENT(i)
 			}
-
+			*/
 			ENDCG
 		}
-		*/
+		
 	}
 	//use ShadowCaster pass from Diffuse shader
-	Fallback "Diffuse"
+	//Fallback "Diffuse"
 }

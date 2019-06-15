@@ -54,22 +54,22 @@ inline float sample_depth(sampler2D depth_texture, float4 depth_texture_channel_
 #endif
 }
 
-////function used to actually sample the heightmap.
-//
-////params:
-//
-////depth texture = the texture that contains the height(or depth)map
-////depth_texture_channel_mask = which channel actually contains the height information
-////uv = uv at which sample the heightmap
-//inline float sample_depth_lod(sampler2D depth_texture, float4 depth_texture_channel_mask, float4 uv)
-//{
-//#ifdef DEPTH_MAP
-//	return dot(tex2Dlod(depth_texture, uv), depth_texture_channel_mask);
-//#else
-//	//since we need the depth of the surface (and not the height), if DEPTH_MAP is not defined invert the sampled value
-//	return 1.0 - dot(tex2Dlod(depth_texture, uv), depth_texture_channel_mask);
-//#endif
-//}
+//function used to actually sample the heightmap.
+
+//params:
+
+//depth texture = the texture that contains the height(or depth)map
+//depth_texture_channel_mask = which channel actually contains the height information
+//uv = uv at which sample the heightmap
+inline float sample_depth_lod(sampler2D depth_texture, float4 depth_texture_channel_mask, float4 uv)
+{
+#ifdef DEPTH_MAP
+	return dot(tex2Dlod(depth_texture, uv), depth_texture_channel_mask);
+#else
+	//since we need the depth of the surface (and not the height), if DEPTH_MAP is not defined invert the sampled value
+	return 1.0 - dot(tex2Dlod(depth_texture, uv), depth_texture_channel_mask);
+#endif
+}
 
 //function used to sample heightmap value. It returns the sampled value scaled by the global depth of the surface.
 
