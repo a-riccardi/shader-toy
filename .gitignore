@@ -9,7 +9,7 @@
 #!/some_other_files
 
 # Folder to not ignore
-!/ShaderToy/Assets/AdvancedParallaxOcclusionMapping/Shaders/Git/**
+!/ShaderToy/Assets/ContactRefinementParallaxMapping/Shaders/Git/**
 !/ShaderToy/Assets/CyberpunkPixelFade/Shaders/Git/**
 !/ShaderToy/Assets/FrameAnimator2D/Shaders/Git/**
 !/ShaderToy/Assets/FreezePostProcess/Shaders/Git/**
