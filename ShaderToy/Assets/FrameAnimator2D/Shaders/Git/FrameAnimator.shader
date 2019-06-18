@@ -47,7 +47,7 @@
 
 			void SetupFrameParameter()
 			{
-				float frame_offset_y = floor(_Frame / _Rows);
+				float frame_offset_y = floor(_Frame / _Columns);
 				_MainTex_ST.xy = float2(1.0 / _Columns, 1.0 / _Rows);
 				_MainTex_ST.zw = float2(_MainTex_ST.x * _Frame, _MainTex_ST.y * lerp(frame_offset_y, (_Rows - 1.0) - frame_offset_y, _DirectionY));
 			}

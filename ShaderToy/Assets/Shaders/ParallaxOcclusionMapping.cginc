@@ -4,8 +4,8 @@
 //-----------------------------------------------------------README-----------------------------------------------------------
 //this library makes use of #defines to optimize away pieces of code you don't need. Please take some time to read which symbols you should define and why
 
-//if you whish to enable the contact refinement technique, just define CONTACT_REFINEMENT keyword somewhere in your shader
-//or just add "#pragma shader_feature CONTACT_REFINEMENT" and "[Toggle(CONTACT_REFINEMENT)] _CRPOM("Enable Contact Refinement POM?", Float) = 0" to display a toggle that allows you
+//if you whish to enable the contact refinement technique, just define _PTHQ_CONTACT_REFINEMENT keyword somewhere in your shader
+//or just add "#pragma shader_feature _PTHQ_CONTACT_REFINEMENT" and "[Toggle(_PTHQ_CONTACT_REFINEMENT)] _CRPOM("Enable Contact Refinement POM?", Float) = 0" to display a toggle that allows you
 //to enable this feature at runtime
 
 //if you whish to enable the computation of soft shadows, just define SELFSHADOWS_SOFT keyword somewhere in your shader
@@ -16,8 +16,8 @@
 //or just add "#pragma shader_feature OUTPUT_DEPTH" and "[Toggle(OUTPUT_DEPTH)] _OutputDepth("Output Depth in BaseColor? (for debug purposes)", Float) = 0" to display a toggle that allows you
 //to enable this feature at runtime
 
-//if you whish to enable the linear interpolation between samples, just define INTERSECTION_LINEAR_INTERPOLATION keyword somewhere in your shader
-//or just add "#pragma shader_feature INTERSECTION_LINEAR_INTERPOLATION" and "[Toggle(INTERSECTION_LINEAR_INTERPOLATION)] _ILI("Enable Intersection Linear Interpolation?", Float) = 0" to display a toggle that allows you
+//if you whish to enable the linear interpolation between samples, just define _PTHQ_OCCLUSION_MAPPING keyword somewhere in your shader
+//or just add "#pragma shader_feature _PTHQ_OCCLUSION_MAPPING" and "[Toggle(_PTHQ_OCCLUSION_MAPPING)] _ILI("Enable Intersection Linear Interpolation?", Float) = 0" to display a toggle that allows you
 //to enable this feature at runtime
 
 //if you whish to use the height map as a depth map, just define DEPTH_MAP keyword somewhere in your shader
@@ -89,6 +89,48 @@ inline float sample_depth_value(sampler2D depth_texture, float4 depth_texture_ch
 //#else
 	return sample_depth(depth_texture, depth_texture_channel_mask, uv, dd) * get_depth(min_depth, max_depth, depth);
 //#endif
+}
+
+//function used to refine the parallax-offsetted uv computed through binary searching around the naive intersection point. Returns the corrected uvs.
+
+//params:
+
+//dd = partial uv derivatives on u and v. used to sample heightmap in a branched loop
+//layerN = the maximum number of layers to divide the heightmap into. Note that usually less steps will be taken 
+//depth texture = the texture that contains the height(or depth)map
+//depth_texture_channel_mask = which channel actually contains the height information
+//min_depth = minimum depth value (aka maxim height), usually 0.0
+//max_depth = maximum depth value (aka minimum height), usually 1.0
+//depth = [0..1] value used to lerp between the two previous parameters
+//current_uv = uv at ray-surface intersection point
+//delte_uv = how much the uv offset for each layer
+//current_depth = depth at intersection point. use sample_depth(depth_texture, depth_texture_channel_mask, uv, dd) function to get it
+//current_layer_depth = how deep is the current layer. usually starts at 0.0
+//layer_depth = how deep each layer goes, usually surface depth / layer number
+inline float2 binary_search_loop_uv(in float4 dd, in float layerN, in sampler2D depth_texture, in float4 depth_texture_channel_mask, in float min_depth, in float max_depth, in float depth, in float2 current_uv, in float2 delta_uv, inout float current_depth, inout float current_layer_depth, in float layer_depth)
+{
+	//initialize depth sign, used to increase or decrease delta_uv and layer_depth
+	float depth_sign = -1.0;
+	//since there's no comparison, unroll this loop to avoid branching 
+	[unroll]
+	for (float j = 0.0; j < layerN; j++)
+	{
+		//each iteration, halve the delta_uv and the layer_depth
+		delta_uv *= 0.5;
+		layer_depth *= 0.5;
+
+		//optimization to avoid branching
+		depth_sign = sign(current_depth - current_layer_depth);
+
+		//increase or decrease the current_uv and the current_layer_depth if we're over or under the surface
+		current_uv += delta_uv * depth_sign;
+		current_layer_depth += layer_depth * depth_sign;
+
+		//adjust current_depth value by sampling the heightmap
+		current_depth = sample_depth_value(depth_texture, depth_texture_channel_mask, current_uv, dd, min_depth, max_depth, depth);
+	}
+
+	return current_uv;
 }
 
 //function used to raytrace along the height map. Returns the parallax-offsetted uvs.
@@ -258,7 +300,7 @@ inline float2 get_parallax_offset_uv(in float4 dd, in float layerN, in float3 ey
 //using only 5 more assignement than the vanilla parallax technique
 //standard technique = 1/layerN approximation error
 //contact refinement technique = 1/(layerN * layerN) approximation error
-#ifdef CONTACT_REFINEMENT
+#if _PTHQ_CONTACT_REFINEMENT && !(_PTHQ_BINARY_SEARCH)
 	//if contact refinement technique is enabled, roll back the computation one step to get out of the heightmap
 	current_uv += delta_uv;
 	current_depth = sample_depth(depth_texture, depth_texture_channel_mask, current_uv, dd);
@@ -267,6 +309,8 @@ inline float2 get_parallax_offset_uv(in float4 dd, in float layerN, in float3 ey
 	layer_depth /= layerN;
 	//get contact refinement uv by raytrace again with better precision
 	current_uv = raytrace_loop_uv(dd, layerN, depth_texture, depth_texture_channel_mask, min_depth, max_depth, depth, current_uv, delta_uv, current_depth, current_layer_depth, layer_depth);
+#elif _PTHQ_BINARY_SEARCH && !(_PTHQ_CONTACT_REFINEMENT)
+	current_uv = binary_search_loop_uv(dd, layerN, depth_texture, depth_texture_channel_mask, min_depth, max_depth, depth, current_uv, delta_uv, current_depth, current_layer_depth, layer_depth);
 #endif
 
 #ifdef OUTPUT_DEPTH
@@ -283,17 +327,18 @@ inline float2 get_parallax_offset_uv(in float4 dd, in float layerN, in float3 ey
 	float2 shadow_delta_uv = ((ts_light_ray.xy / ts_light_ray.z) * get_depth(min_depth, max_depth, depth)) / 256.0;
 
 	//compute soft self shadows attenuation (see raytrace_loop_shadows before for more info)
-	//if CONTACT_REFINEMENT is on, reset layer_depth to it's original value
+	//if _PTHQ_CONTACT_REFINEMENT is on, reset layer_depth to it's original value
 	shadow_attenuation = raytrace_loop_shadows(layerN, depth_texture, depth_texture_channel_mask, dd, min_depth, max_depth, depth, shadow_uv, shadow_delta_uv, current_depth, current_layer_depth,
-	#ifdef CONTACT_REFINEMENT
+	#if _PTHQ_CONTACT_REFINEMENT && !(_PTHQ_BINARY_SEARCH)
 		layer_depth *= layerN
 	#else
 		layer_depth
 	#endif
 		);
 #endif
-#ifdef INTERSECTION_LINEAR_INTERPOLATION
-	//if INTERSECTION_LINEAR_INTERPOLATION is on, lerp between the previous uv and the current uv by computing a weight.
+
+#if _PTHQ_OCCLUSION_MAPPING && !(_PTHQ_BINARY_SEARCH)
+	//if _PTHQ_OCCLUSION_MAPPING is on, lerp between the previous uv and the current uv by computing a weight.
 	//see https://catlikecoding.com/unity/tutorials/rendering/part-20/ for more info
 	return lerp(current_uv + delta_uv, current_uv, get_intersection_interpolation(dd, current_depth, current_layer_depth, layer_depth, current_uv, delta_uv, depth_texture, depth_texture_channel_mask, min_depth, max_depth, depth));
 #else
