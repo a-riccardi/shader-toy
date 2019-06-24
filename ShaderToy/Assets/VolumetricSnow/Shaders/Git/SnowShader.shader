@@ -20,7 +20,7 @@
 		_SSScaleF ("SSS Scale Factor", Range(0.5, 5)) = 3
 
 		_TsnowCompactnessF ("Trampled Snow Compactness Factor", Range(0.0, 3.0)) = 1.0
-		_TsnowMinHeight ("Trampled Snow Min Height", Range(0.0, 1.0)) = 0.5 //Range(0.001, 0.2)) = 0.1
+		_TsnowMinHeight ("Trampled Snow Min Height", Range(0.0, 1.0)) = 0.5
 		_TsnowGradientF ("Trampled Snow Gradient", Range(1, 12)) = 6
 
 		_Displacement ("Displacement", Range(0.0, 1.0)) = 0.3
@@ -34,7 +34,7 @@
 		_SnowBumpinessF("_SnowBumpinessF", Range(0,1)) = 0.1
 		_SnowBumpTileF("_SnowBumpTileF", Range(0.1, 10)) = 3
 		_CrunchedRoughnessF("_CrunchedRoughnessF", Range(0.0, 1.0)) = 0.9
-		[HideInInspector] _HeightTex("_HeightTex", 2D) = "white" {} // "white" {}
+		[HideInInspector] _HeightTex("_HeightTex", 2D) = "white" {}
 	}
 
 	SubShader
@@ -46,7 +46,7 @@
 		#pragma surface surf StandardSpecular addshadow vertex:vert tessellate:distance_based_tessellation
 		#pragma target 5.0
 		#pragma multi_compile ______ FALLBACK_ARGB
-		#include "../../Shaders/SamplerTools.cginc"
+		#include "../../../Shaders/SamplerTools.cginc"
 		#include "Tessellation.cginc"
 		#include "UnityStandardUtils.cginc"
 		#define OFFSET_CONST 0.005
@@ -170,6 +170,8 @@
 
 			//compute the world space normal as the cross product of the Z and the X vector
 			float3 wsn = normalize(cross((v2 - v0).xyz, (v1 - v0).xyz));
+			//accounting for roof rotation (-90° on x axis)
+			wsn.z *= -1.0;
 
 			/*float3 normalWorld = UnityObjectToWorldNormal(v.normal);
 			float3 tangentWorld = UnityObjectToWorldDir(v.tangent.xyz);

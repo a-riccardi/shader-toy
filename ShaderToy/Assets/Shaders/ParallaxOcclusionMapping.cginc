@@ -1,5 +1,5 @@
-﻿#ifndef POM_HUB
-#define POM_HUB
+﻿#ifndef PM_HUB
+#define PM_HUB
 
 //-----------------------------------------------------------README-----------------------------------------------------------
 //this library makes use of #defines to optimize away pieces of code you don't need. Please take some time to read which symbols you should define and why

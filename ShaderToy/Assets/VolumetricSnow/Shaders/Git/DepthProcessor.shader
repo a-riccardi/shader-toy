@@ -16,7 +16,6 @@
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-			//#pragma target 4.0
 			#pragma multi_compile ______ FALLBACK_ARGB
 
 			#include "UnityCG.cginc"
@@ -45,45 +44,36 @@
 			sampler2D _CameraDepthTexture;
 			float _PersistenceF;
 
-			#ifdef FALLBACK_ARGB
-			//fallback frag function that outputs to an argb texture
 			fixed4 frag(v2f i) : SV_Target
 			{
 				//sample previous accumulated depth
+				float accumulatedDepth;
+#ifdef FALLBACK_ARGB
 				//NOTE the value is encoded, so decode from ARGB texture
-				float accumulatedDepth = DecodeFloatRGBA(tex2D(_MainTex, i.uv));
+				accumulatedDepth = DecodeFloatRGBA(tex2D(_MainTex, i.uv));
+#else 
+				accumulatedDepth = tex2D(_MainTex, i.uv).r;
+#endif
 				//invert x component of uv because camera is flipped 
 				i.uv.x = 1.0 - i.uv.x;
 				//sample current depth value from depth texture
 				float depthValue = Linear01Depth(tex2D(_CameraDepthTexture, i.uv).r);
 				//compute time factor as 1.0 / persistence if persistence > 0.0, or 0.0 otherwise
 				float timeF = lerp(0.0, clamp((1.0 / _PersistenceF), 0.0, 1.0), sign(_PersistenceF));
-				//sum the time factor to the accumulated depth, multiply for the current depth value to keep zone flat
+
+				//sum the time factor to the accumulated depth, multiply for the current depth value to keep zone flat			
+				float actualDepth;
+#ifdef FALLBACK_ARGB
 				//NOTE: clamping [0.0, 1.0) because the float encoding function relies on frac(n),
 				//which will return the number we need UNLESS the float is 1.0 --> frac(1.0) = 0
-				float actualDepth = clamp((accumulatedDepth + timeF) * depthValue, 0.0, 0.9999999999);
+				actualDepth = clamp((accumulatedDepth + timeF) * depthValue, 0.0, 0.9999999999);
 				//encode the actual depth for the frame value to ARGB and return it
 				return EncodeFloatRGBA(actualDepth);
-			}
-
-			#else
-			//default frag function, outputs to a RFloat texture
-			float4 frag(v2f i) : SV_Target
-			{
-				//sample previous accumulated depth
-				float accumulatedDepth = tex2D(_MainTex, i.uv).r;
-				//invert x component of uv because camera is flipped 
-				i.uv.x = 1.0 - i.uv.x;
-				//sample current depth value from depth texture
-				float depthValue = Linear01Depth(tex2D(_CameraDepthTexture, i.uv).r);
-				//compute time factor as 1.0 / persistence if persistence > 0.0, or 0.0 otherwise
-				float timeF = lerp(0.0, clamp((1.0 / _PersistenceF), 0.0, 1.0), sign(_PersistenceF));
-				//sum the time factor to the accumulated depth, multiply for the current depth value to keep zone flat
-				float actualDepth = clamp((accumulatedDepth + timeF) * depthValue, 0.0, 1.0);
-				//return the actual depth for the frame
+#else
+				actualDepth = clamp((accumulatedDepth + timeF) * depthValue, 0.0, 1.0);
 				return float4(actualDepth, 0.0, 0.0, 0.0);
+#endif
 			}
-			#endif
 			ENDCG
 		}
 
@@ -96,7 +86,7 @@
 			#pragma multi_compile ______ FALLBACK_ARGB
 
 			#include "UnityCG.cginc"
-			#include "../../Shaders/Utils.cginc"
+			#include "../../../Shaders/Utils.cginc"
 			struct appdata
 			{
 				float4 vertex : POSITION;
@@ -119,17 +109,19 @@
 
 			sampler2D _MainTex;
 			float4 _MainTex_TexelSize; //.x -> 1.0/width | .y -> 1.0/height | .z -> width | .w -> height
-			//NOTE: only choosing between blur/no blur for now, removing unused variables
-			//float _KernelSize;
 
-			#ifdef FALLBACK_ARGB
+			
 			//fallback frag function that outputs to a ARGB texture
 			fixed4 frag(v2f i) : SV_Target
 			{
 				//initialize col value with the current pixel value
+				float col;
+#ifdef FALLBACK_ARGB
 				//NOTE the color is encoded, so decode from ARGB texture
-				float col = DecodeFloatRGBA(tex2D(_MainTex, i.uv));
-			
+				col = DecodeFloatRGBA(tex2D(_MainTex, i.uv));
+#else
+				col = tex2D(_MainTex, i.uv);
+#endif
 				//loop trough a small poisson kernel, sample and add
 				for (uint j = 0u; j < 4u; j++)
 				{
@@ -140,31 +132,14 @@
 				//get the mean of the sampled values
 				col /= 5.0;
 
+#ifdef FALLBACK_ARGB
 				//NOTE: clamping [0.0, 1.0) because the float encoding function relies on frac(n),
 				//which will return the number we need UNLESS the float is 1.0 --> frac(1.0) = 0
 				return EncodeFloatRGBA(clamp(col, 0.0, 0.9999999999));
-			}
-			#else
-			//default frag function, outputs to a RFloat texture
-			float4 frag(v2f i) : SV_Target
-			{
-				//initialize col value
-				float col = 0.0;
-			
-				//loop trough a small poisson kernel, sample and add
-				for (uint j = 0u; j < 4u; j++)
-				{
-					//the kernel is modulated for the texel size to sample around the current pixel
-					col += tex2D(_MainTex, i.uv + (poisson_kernel_4[j] * _MainTex_TexelSize.xy));
-				}
-
-				//get the mean of the sampled values
-				col /= 4.0;
-
-				//return color value, clamped to preserve value
+#else
 				return float4(clamp(col, 0.0, 1.0), 0.0, 0.0, 0.0);
+#endif
 			}
-			#endif
 			ENDCG
 		}
 	}
