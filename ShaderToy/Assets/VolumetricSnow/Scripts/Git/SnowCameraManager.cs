@@ -8,10 +8,58 @@ public enum KernelSize { NONE = 0, SMALL = 1 } //, MEDIUM = 8, LARGE = 16 }
 public class SnowCameraManager : MonoBehaviour
 {
     [SerializeField] Texture2D whitePatch;
-    [SerializeField] BufferSize bufferSize;
-    [SerializeField] KernelSize kernelSize;
     [SerializeField] Material depthProcessorMaterial;
 
+    [SerializeField] BufferSize bufferSize;
+    public BufferSize BufferSize
+    {
+        get { return bufferSize; }
+
+        set
+        {
+            bufferSize = value;
+
+            int xBufferSize = (int)((float)bufferSize * snowCamera.aspect);
+            
+            RenderTexture old_depthBuffer = new RenderTexture(depthBuffer);
+            RenderTexture old_depthBufferSupport = new RenderTexture(depthBufferSupport);
+            RenderTexture old_depthBufferBlurred = new RenderTexture(depthBufferBlurred);
+
+            old_depthBuffer.Create();
+            old_depthBufferSupport.Create();
+            old_depthBufferBlurred.Create();
+
+            if (SystemInfo.copyTextureSupport == CopyTextureSupport.None)
+            {
+                Graphics.Blit(depthBuffer, old_depthBuffer);
+                Graphics.Blit(depthBufferSupport, old_depthBufferSupport);
+                Graphics.Blit(depthBufferBlurred, old_depthBufferBlurred);
+            }
+            else
+            {
+                Graphics.CopyTexture(depthBuffer, old_depthBuffer);
+                Graphics.CopyTexture(depthBufferSupport, old_depthBufferSupport);
+                Graphics.CopyTexture(depthBufferBlurred, old_depthBufferBlurred);
+            }
+                
+            SetupVariables(false);
+
+            Graphics.Blit(old_depthBuffer, depthBuffer);
+            Graphics.Blit(old_depthBufferSupport, depthBufferSupport);
+            Graphics.Blit(old_depthBufferBlurred, depthBufferBlurred);
+
+            old_depthBuffer.Release();
+            old_depthBufferSupport.Release();
+            old_depthBufferBlurred.Release();
+
+            snowCamera.RemoveCommandBuffer(CameraEvent.BeforeForwardOpaque, cb);
+            cb.Dispose();
+
+            SetupCommandBuffer(true);
+        }
+    }
+
+    [SerializeField] KernelSize kernelSize;
     public KernelSize BlurKernelSize
     {
         get { return kernelSize; }
@@ -22,7 +70,8 @@ public class SnowCameraManager : MonoBehaviour
 
             snowCamera.RemoveCommandBuffer(CameraEvent.BeforeForwardOpaque, cb);
             cb.Dispose();
-            SetupCommandBuffer();
+            SetupCommandBuffer(false);
+            SetSnowMaterialDepthTexture(roofManager.SnowMaterial);
         }
     }
 
@@ -42,12 +91,17 @@ public class SnowCameraManager : MonoBehaviour
     }
 
     Camera snowCamera;
-    //Material depthProcessorMaterial;
+    public SnowRoof RoofManager { get { return roofManager; } set { roofManager = value; } }
+    SnowRoof roofManager;
 
     RenderTexture depthBuffer;
     RenderTexture depthBufferSupport;
     RenderTexture depthBufferBlurred;
-    
+
+    RenderTargetIdentifier dst;
+    RenderTargetIdentifier dstSupport;
+    RenderTargetIdentifier dstBlurred;
+
     CommandBuffer cb;
     int kernelSizeID;
     int heightTexID;
@@ -65,12 +119,15 @@ public class SnowCameraManager : MonoBehaviour
         GetPropertyIDs();
     }
 
-    void SetupVariables()
+    void SetupVariables(bool generateDepthProcessor = true)
     {
-        //setup all the variables
-        //create the material (optionally, expose it as a reference?)
-        depthProcessorMaterial = new Material(depthProcessorMaterial);
-        depthProcessorMaterial.SetFloat(persistenceID, persistence);
+        if (generateDepthProcessor)
+        {
+            //setup all the variables
+            //create the material (optionally, expose it as a reference?)
+            depthProcessorMaterial = new Material(depthProcessorMaterial);
+            depthProcessorMaterial.SetFloat(persistenceID, persistence);
+        }
 
         int xBufferSize = (int)((float)bufferSize * snowCamera.aspect);
         
@@ -93,49 +150,6 @@ public class SnowCameraManager : MonoBehaviour
             depthBufferSupport = new RenderTexture(xBufferSize, (int)bufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             depthBufferBlurred = new RenderTexture(xBufferSize, (int)bufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
         }
-
-
-        /*
-        //perform check on RFloat format hardware capability
-        if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RFloat))
-        {
-            //use RFloat textures, disable fallback keyword
-            Shader.DisableKeyword("FALLBACK_ARGB");
-            depthBuffer = new RenderTexture((int)bufferSize, xBufferSize, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-            depthBufferSupport = new RenderTexture((int)bufferSize, xBufferSize, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-            depthBufferBlurred = new RenderTexture((int)bufferSize, xBufferSize, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-        }
-        else
-        {
-            //print warning and default to ARGB32 textures
-            Debug.LogWarning("RFloat texture format is not supported on this platform. Defaulting to ARGB texture format");
-            //enable fallback keyword
-            Shader.EnableKeyword("FALLBACK_ARGB");
-            depthBuffer = new RenderTexture((int)bufferSize, xBufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            depthBufferSupport = new RenderTexture((int)bufferSize, xBufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            depthBufferBlurred = new RenderTexture((int)bufferSize, xBufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        }
-
-        //perform check on RFloat format hardware capability
-        if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RFloat))
-        {
-            //use RFloat textures, disable fallback keyword
-            Shader.DisableKeyword("FALLBACK_ARGB");
-            depthBuffer = new RenderTexture((int)bufferSize, (int)bufferSize, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-            depthBufferSupport = new RenderTexture((int)bufferSize, (int)bufferSize, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-            depthBufferBlurred = new RenderTexture((int)bufferSize, (int)bufferSize, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-        }
-        else
-        {
-            //print warning and default to ARGB32 textures
-            Debug.LogWarning("RFloat texture format is not supported on this platform. Defaulting to ARGB texture format");
-            //enable fallback keyword
-            Shader.EnableKeyword("FALLBACK_ARGB");
-            depthBuffer = new RenderTexture((int)bufferSize, (int)bufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            depthBufferSupport = new RenderTexture((int)bufferSize, (int)bufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            depthBufferBlurred = new RenderTexture((int)bufferSize, (int)bufferSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        }
-        */
     }
 
     void GetPropertyIDs()
@@ -154,15 +168,18 @@ public class SnowCameraManager : MonoBehaviour
         Graphics.Blit(whitePatch, depthBufferBlurred);
     }
 
-    void SetupCommandBuffer()
+    void SetupCommandBuffer(bool generateRTI = true)
     {
         cb = new CommandBuffer();
-        cb.name = "Depth Processor Buffer";
+        cb.name = "Depth Processor Buffer" + (kernelSize == KernelSize.NONE ? "" : " - BLUR -");
 
-        RenderTargetIdentifier dst = new RenderTargetIdentifier(depthBuffer);
-        RenderTargetIdentifier dstSupport = new RenderTargetIdentifier(depthBufferSupport);
-        RenderTargetIdentifier dstBlurred = new RenderTargetIdentifier(depthBufferBlurred);
-
+        if (generateRTI)
+        {
+            dst = new RenderTargetIdentifier(depthBuffer);
+            dstSupport = new RenderTargetIdentifier(depthBufferSupport);
+            dstBlurred = new RenderTargetIdentifier(depthBufferBlurred);
+        }
+       
         //copy the dst buffer into the supportDst, which will be used in the next step
         //NOTE: CopyTexture is more efficient, but it's not supported on all platforms
         //perform check & add a Blit command if CopyTexture is unsupported
@@ -222,29 +239,14 @@ public class SnowCameraManager : MonoBehaviour
     }
 
 #if UNITY_EDITOR
-    /*
-     
-    //helper update method for editor tuning
-    void Update()
+    public void Editor_UpdateValues()
     {
-        if (depthProcessorMaterial != null)
-        {
-            depthProcessorMaterial.SetFloat(persistenceID, persistence);
-        }
+        if (!Application.isPlaying)
+            return;
 
-        if (Input.GetKeyDown(KeyCode.P))
-        {
-            switch (kernelSize)
-            {
-                case KernelSize.NONE:
-                    BlurKernelSize = KernelSize.SMALL;
-                    break;
-                case KernelSize.SMALL:
-                    BlurKernelSize = KernelSize.NONE;
-                    break;
-            }
-        }
+        Persistence = persistence;
+        BufferSize = bufferSize;
+        BlurKernelSize = kernelSize;
     }
-    */
 #endif
 }

@@ -25,12 +25,13 @@
 		_RoofAOF("Ambient Occlusion Intensity", Range(0, 2)) = 1.0
 		_RoofEmissiveF("Emissive Intensity", Range(0.0, 100.0)) = 1.0
 		_RoofEmissiveColor("Emissive Color", Color) = (1.0, 1.0, 1.0, 1.0)
+		_SnowRoofBlendSoftnessF("Snow to Roof Blend Softness", Range(0.0, 1.0)) = 0.5
 		[Space(20)]
 		[Header(Displacement)]
 		_Displacement ("Displacement", Range(0.0, 1.0)) = 0.3
-		_NoiseScale("Noise Scale", Range(0.1, 10)) = 1
+		_NoiseOffset("Noise Offset", Range(0.1, 10)) = 1
 		_SnowBumpinessF("Snow Bumpiness", Range(0,1)) = 0.1
-		_SnowBumpTileF("Snow Bump Factor", Range(0.1, 10)) = 3
+		_SnowBumpTileF("Bump Tile Factor", Range(0.1, 10)) = 3
 		_TessellationF ("Tassellation Factor", Range(0.0, 100.0)) = 5
 		_TessellationMin ("Tessellation Minimum Distance", Float) = 5
 		_TessellationMax ("Tessellation Maximum Distance", Float) = 50	
@@ -50,7 +51,7 @@
 		#include "../../../Shaders/SamplerTools.cginc"
 		#include "Tessellation.cginc"
 		#include "UnityStandardUtils.cginc"
-		#define OFFSET_CONST 0.005
+		#define OFFSET_CONST 0.0025
 
 		struct appdata
 		{
@@ -94,6 +95,7 @@
 		uniform float _RoofAOF;
 		uniform float _RoofEmissiveF;
 		uniform fixed4 _RoofEmissiveColor;
+		uniform float _SnowRoofBlendSoftnessF;
 
 		uniform float _Displacement;
 		uniform float _NoiseScale;
@@ -213,11 +215,11 @@
 			fixed3 roof_specular = lerp(roof_mixColor.g * _RoofRoughnessF, snow_specular, min_snow_height);
 			half3 roof_normal = lerp(float3(roof_normalColor.rg * _RoofNormalF, 1.0), snow_normal, min_snow_height);
 			fixed3 roof_emissive = roof_baseColor.a * _RoofEmissiveColor * _RoofEmissiveF;
-			float roof_smoothness = lerp(((1,0 - roof_mixColor.r) * _RoofRoughnessF), snow_smoothness, min_snow_height);
+			float roof_smoothness = lerp(((1.0 - roof_mixColor.r) * _RoofRoughnessF), snow_smoothness, min_snow_height);
 			float roof_ao = roof_mixColor.b * (2.0 - _RoofAOF);
 
 			//get blend factor between snow and roof
-			float blend_amount = clamp01(amount * 2.0);
+			float blend_amount = clamp01(remap01(amount, 0.0,_SnowRoofBlendSoftnessF));
 
 			//fill in material structure lerping between different material properties based on blend_amount
 			o.Albedo = lerp(roof_albedo, snow_albedo, blend_amount);

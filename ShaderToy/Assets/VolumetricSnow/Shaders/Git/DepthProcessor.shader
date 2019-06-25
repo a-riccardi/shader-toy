@@ -109,8 +109,7 @@
 
 			sampler2D _MainTex;
 			float4 _MainTex_TexelSize; //.x -> 1.0/width | .y -> 1.0/height | .z -> width | .w -> height
-
-			
+		
 			//fallback frag function that outputs to a ARGB texture
 			fixed4 frag(v2f i) : SV_Target
 			{

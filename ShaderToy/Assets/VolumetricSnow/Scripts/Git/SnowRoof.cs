@@ -10,6 +10,7 @@ public class SnowRoof : MonoBehaviour
     [SerializeField] SnowCameraManager snowCamera;
     [SerializeField] Collider roofCollider;
 
+    public Material SnowMaterial { get { return snowRenderer.material; } }
     Renderer snowRenderer;
     public Guid ID { get { return id; } }
     Guid id;
@@ -28,6 +29,7 @@ public class SnowRoof : MonoBehaviour
         float roofAspectRatio = transform.localScale.x / transform.localScale.z;
 
         snowCamera.SetCameraAspect(roofCameraYsize, roofAspectRatio);
+        snowCamera.RoofManager = this;
         SwitchToActiveState();
     }
 
