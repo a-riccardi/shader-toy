@@ -50,6 +50,9 @@ public class VideoAdColorSync_VS : MonoBehaviour
 
     void OnLoopPointReached(VideoPlayer source)
     {
+        player.Pause();
+        player.time = 0.0f;
+
         sequenceIndex++;
 
         if (sequenceIndex >= adSequence.Length)
@@ -58,6 +61,8 @@ public class VideoAdColorSync_VS : MonoBehaviour
         GetAdInfo(adSequence[sequenceIndex]);
 
         SetupLight();
+
+        player.Play();
     }
 
     void SetupLight()

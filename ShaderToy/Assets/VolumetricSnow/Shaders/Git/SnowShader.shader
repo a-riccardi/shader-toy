@@ -98,7 +98,7 @@
 		uniform float _SnowRoofBlendSoftnessF;
 
 		uniform float _Displacement;
-		uniform float _NoiseScale;
+		uniform float _NoiseOffset;
 		uniform float _SnowBumpinessF;
 		uniform float _SnowBumpTileF;
 		uniform float _TessellationF;
@@ -154,7 +154,7 @@
 			float4 v2 = v0 + float4(0, 0, OFFSET_CONST, 0);
 			
 			float2 worldSpaceUV = v0.xz * _SnowTilingF;
-			fixed4 h_mixmap = texture_tiler_lod(_HSnowMixMap, worldSpaceUV, _NoiseScale, _NoiseTex, 0);
+			fixed4 h_mixmap = texture_tiler_lod(_HSnowMixMap, worldSpaceUV, _NoiseOffset, _NoiseTex, 0);
 			float min_snow_height = clamp01(remap01(h_mixmap.b, 0.0, 1.0 - _TsnowGradientF)) * 0.15;
 
 			//account for minimum desired show height
@@ -191,7 +191,7 @@
 			float2 worldSpaceUV = IN.worldPos.xz * _SnowTilingF;
 
 			//sample the mixmap
-			fixed4 h_mixmap = texture_tiler(_HSnowMixMap, worldSpaceUV, _NoiseScale, _NoiseTex);
+			fixed4 h_mixmap = texture_tiler(_HSnowMixMap, worldSpaceUV, _NoiseOffset, _NoiseTex);
 			
 			float min_snow_height = clamp01(remap01(h_mixmap.b, 0.0, 1.0 - _TsnowGradientF)); 
 
@@ -200,7 +200,7 @@
 			//compute snow material parameters
 			fixed3 snow_albedo = _SnowColor.rgb;
 			fixed3 snow_specular = h_mixmap.r * _SnowColor.rgb * _SnowSpecularF;
-			half3 snow_normal = UnpackNormal(texture_tiler(_HSnowNormalMap, worldSpaceUV, _NoiseScale, _NoiseTex));
+			half3 snow_normal = UnpackNormal(texture_tiler(_HSnowNormalMap, worldSpaceUV, _NoiseOffset, _NoiseTex));
 			snow_normal.rg *= _SnowNormalF;
 			fixed3 snow_emissive = fixed3(h_mixmap.g, h_mixmap.g, h_mixmap.g) * clamp01(abs(1.0 - dot(IN.viewDir, o.Normal)) * clamp01(dot(distance_worldspace, distance_worldspace) / lerp(5, 500, _EmissiveFallofF))) * _EmissiveF * step(0.05, amount);
 			float snow_smoothness = (1.0 - h_mixmap.g) * _SnowRoughnessF;
