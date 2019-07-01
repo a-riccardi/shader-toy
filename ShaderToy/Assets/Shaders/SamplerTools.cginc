@@ -28,8 +28,8 @@ inline float4 texture_tiler(sampler2D _Tex, float2 uv, float scale, sampler2D _N
 	float i = floor(l);
 	float f = l - i; //getting the fractional part without using frac(l)
 
-	float2 off_a = sin(float2(3.0, 7.0)*(i + 0.0)); // can replace with any other hash
-	float2 off_b = sin(float2(3.0, 7.0)*(i + 1.0)); // can replace with any other hash
+	float2 off_a = sin(float2(3.0, 7.0) * i); // can replace with any other hash
+	float2 off_b = sin(float2(3.0, 7.0) * (i + 1.0)); // can replace with any other hash
 
 	float4 col_a = tex2D(_Tex, uv + scale * off_a);
 	float4 col_b = tex2D(_Tex, uv + scale * off_b);
