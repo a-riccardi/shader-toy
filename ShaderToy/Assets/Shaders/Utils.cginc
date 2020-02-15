@@ -1,137 +1,17 @@
 ﻿#ifndef UTILS
 #define UTILS
 
+#include "Hash.cginc"
+#include "SamplerTools.cginc"
+
 #define PI (3.14159265)
 #define PI_2 (6.2831853)
+#define PI_INVERSE (0.3183098)
 
 #define GRAYSCALE_3 float3(0.2126, 0.7152, 0.0722)
 #define GRAYSCALE float4(0.2126, 0.7152, 0.0722, 1.0)
 
 #define UV_CENTER (float2(0.5, 0.5))
-
-#include "Hash.cginc"
-#include "SamplerTools.cginc"
-
-static const float2 kernel_16[16] =
-{
-	//small-----------
-	float2(-1.5, -0.5),
-	float2(-0.5, +1.5),
-	float2(+0.5, -1.5),
-	float2(+1.5, +0.5),
-	//medium----------
-	float2(-2.5, +1.5),
-	float2(-1.5, -2.5),
-	float2(+1.5, +2.5),
-	float2(+2.5, +1.5),
-	//large-----------
-	float2(-3.5, -2.5),
-	float2(-3.5, -0.5),
-	float2(-2.5, +3.5),
-	float2(-1.5, +3.5),
-	float2(+0.5, -3.5),
-	float2(+2.5, -3.5),
-	float2(+3.5, +0.5),
-	float2(+3.5, +2.5)
-};
-
-static const float2 poisson_kernel_4[4] =
-{
-	float2( 0.4247072, -0.4262313),
-	float2(-0.3010053,  0.3568736),
-	float2( 0.8125032,  0.3971981),
-	float2(-0.4083271, -0.8709177)
-};
-
-static const float2 gaussian_kernel_3[3] =
-{
-	float2(0.250838, 0.0),
-	float2(0.498323, 0.0),
-	float2(0.250838, 0.0)
-};
-
-static const float2 gaussian_kernel_5[5] =
-{
-	float2(0.130598, 0.0),
-	float2(0.230293, 0.0),
-	float2(0.278216, 0.0),
-	float2(0.230293, 0.0),
-	float2(0.130598, 0.0)
-};
-
-static const float2 gaussian_kernel_9[9] =
-{
-	float2(0.068076, -4.0),
-	float2(0.095550, -3.0),
-	float2(0.121731, -2.0),
-	float2(0.140767, -1.0),
-	float2(0.147753,  0.0),
-	float2(0.140767,  1.0),
-	float2(0.121731,  2.0),
-	float2(0.095550,  3.0),
-	float2(0.068076,  4.0)
-};
-
-static const float3 laplacian_edge_kernel[9] =
-{
-	float3(-1.0,  1.0, -1.0),
-	float3( 0.0,  1.0,  2.0),
-	float3( 1.0,  1.0, -1.0),
-	float3(-1.0,  0.0,  2.0),
-	float3( 0.0,  0.0, -4.0),
-	float3( 1.0,  0.0,  2.0),
-	float3(-1.0, -1.0, -1.0),
-	float3( 0.0, -1.0,  2.0),
-	float3( 1.0, -1.0, -1.0)
-};
-
-static const float3 sobel_edge_kernel_x[6] =
-{
-	float3(-1.0,  1.0,  1.0),
-	float3( 1.0,  1.0, -1.0),
-	float3(-1.0,  0.0,  2.0),
-	float3( 1.0,  0.0, -2.0),
-	float3(-1.0, -1.0,  1.0),
-	float3(-1.0, -1.0, -1.0)
-};
-
-static const float3 sobel_edge_kernel_y[6] =
-{
-	float3(-1.0,  1.0,  1.0),
-	float3( 0.0,  1.0,  2.0),
-	float3( 1.0,  1.0,  1.0),
-	float3(-1.0, -1.0, -1.0),
-	float3( 0.0, -1.0, -2.0),
-	float3( 1.0, -1.0, -1.0)
-};
-
-static const float3 sharr_edge_kernel_x[6] =
-{
-	float3(-1.0,  1.0,  3.0),
-	float3(-1.0,  0.0,  10.0),
-	float3(-1.0, -1.0,  3.0),
-	float3( 1.0,  1.0, -3.0),
-	float3( 1.0,  0.0, -10.0),
-	float3( 1.0, -1.0, -3.0)
-};
-
-static const float3 sharr_edge_kernel_y[6] =
-{
-	float3(-1.0,  1.0,  3.0),
-	float3( 0.0,  1.0,  10.0),
-	float3( 1.0,  1.0,  3.0),
-	float3(-1.0, -1.0, -3.0),
-	float3( 0.0, -1.0, -10.0),
-	float3( 1.0, -1.0, -3.0)
-};
-
-static const float2 box_blur_3[4] =
-{
-	float2(-0.5, 0.5),
-	float2( 0.5, 0.5),
-	float2(-0.5,-0.5),
-	float2( 0.5,-0.5)
-};
 
 inline float remap(float value, float oldMin, float oldMax, float newMin, float newMax)
 {
@@ -228,6 +108,76 @@ inline float grayscale(float4 col)
 	return col.x * GRAYSCALE_3.x + col.y * GRAYSCALE_3.y + col.z * GRAYSCALE_3.z;
 }
 
+inline float2 uv_scale_transform(float2 uv, float4 sampler_ST)
+{
+	return uv * sampler_ST.xy + sampler_ST.zw;
+}
+
+inline float2 uv_scale_transform(float2 uv, float4 sampler_ST, float global_scaler)
+{
+	return uv * sampler_ST.xy * global_scaler + sampler_ST.zw;
+}
+
+inline float expand_range(float f)
+{
+	return f * 2.0 - 1.0;
+}
+
+inline float2 expand_range(float2 f)
+{
+	return f * 2.0 - 1.0;
+}
+
+inline float3 expand_range(float3 f)
+{
+	return f * 2.0 - 1.0;
+}
+
+inline float4 expand_range(float4 f)
+{
+	return f * 2.0 - 1.0;
+}
+
+inline float compress_range(float f)
+{
+	return f * 0.5 + 0.5;
+}
+
+inline float2 compress_range(float2 f)
+{
+	return f * 0.5 + 0.5;
+}
+
+inline float3 compress_range(float3 f)
+{
+	return f * 0.5 + 0.5;
+}
+
+inline float4 compress_range(float4 f)
+{
+	return f * 0.5 + 0.5;
+}
+
+inline float sqr(float f)
+{
+	return f * f;
+}
+
+inline float2 sqr(float2 f)
+{
+	return f * f;
+}
+
+inline float3 sqr(float3 f)
+{
+	return f * f;
+}
+
+inline float4 sqr(float4 f)
+{
+	return f * f;
+}
+
 //taken from http://blog.selfshadow.com/publications/blending-in-detail/, reorient detail normal map to follow the base normal map direction
 inline float3 reorient_normal_map(float3 base_normal, float3 detail_normal)
 {
@@ -236,22 +186,58 @@ inline float3 reorient_normal_map(float3 base_normal, float3 detail_normal)
 	return normalize(t * dot(t, u) - u * t.z);
 }
 
-#ifndef SAMPLER_TOOLS
-inline float vec_sum(float2 vec)
-{
-	return vec.x + vec.y;
-}
+//inline float3 analytical_normal_extraction(sampler2D heightmap, float3 base_normal, float vertex_offset, float4 heightmap_mask, float4 world_space_vertex, float2 world_space_uv, float lod, float displacement, out float4 position)
+//{
+//	//v0 is the current vertex, v1 and v2 are fake neighbour vertices used to compute the normal
+//	float4 v0 = world_space_vertex;
+//	float4 v1 = v0 + float4(vertex_offset, 0, 0, 0);
+//	float4 v2 = v0 + float4(0, 0, vertex_offset, 0);
+//
+//	//get the correct height for the three point needed for analytical normal reconstruction
+//	v0.y += expand_range(dot(tex2Dlod(heightmap, float4(world_space_uv, 0, lod)), heightmap_mask)) * displacement;
+//	v1.y += expand_range(dot(tex2Dlod(heightmap, float4((world_space_uv.x + vertex_offset), world_space_uv.y, 0, lod)), heightmap_mask)) * displacement;
+//	v2.y += expand_range(dot(tex2Dlod(heightmap, float4(world_space_uv.x, (world_space_uv.y + vertex_offset), 0, lod)), heightmap_mask)) * displacement;
+//
+//	position = mul(unity_WorldToObject, v0);
+//
+//	//compute the world space normal as the cross product of the Z and the X vector
+//	float3 wsn = normalize(cross((v1 - v0).xyz, (v2 - v0).xyz));
+//	wsn.y *= -1;
+//	//return the computed object space normal for this vertex
+//	return mul((float3x3)unity_WorldToObject, wsn);
+//
+//	//normalize and store the computed object space normal for this vertex, accounting for object_space normal direction
+//	//float3 normal = reorient_normal_map(float3(0,0,1), mul((float3x3)unity_WorldToObject, wsn));
+//
+//	//retutn normal;
+//}
 
-inline float vec_sum(float3 vec)
+inline float3 analytical_normal_extraction(sampler2D heightmap, float3 base_normal, float vertex_offset, float4 heightmap_mask, float4 world_space_vertex, float2 world_space_uv, float lod, float displacement, out float4 position)
 {
-	return vec.x + vec.y + vec.z;
-}
+	//v0 is the current vertex, v1 and v2 are fake neighbour vertices used to compute the normal
+	float4 v0 = world_space_vertex;
+	float4 v1 = v0 + float4(vertex_offset, 0, 0, 0);
+	float4 v2 = v0 + float4(0, 0, vertex_offset, 0);
 
-inline float vec_sum(float4 vec)
-{
-	return vec.x + vec.y + vec.z + vec.w;
+	//get the correct height for the three point needed for analytical normal reconstruction
+	v0.y += /*expand_range*/(box_blur_3(heightmap, world_space_uv, float2(vertex_offset, vertex_offset), heightmap_mask, lod)) * displacement;
+	v1.y += /*expand_range*/(box_blur_3(heightmap, float2((world_space_uv.x + vertex_offset), world_space_uv.y), float2(vertex_offset, vertex_offset), heightmap_mask, lod)) * displacement;
+	v2.y += /*expand_range*/(box_blur_3(heightmap, float2(world_space_uv.x, (world_space_uv.y + vertex_offset)), float2(vertex_offset, vertex_offset), heightmap_mask, lod)) * displacement;
+
+	position = mul(unity_WorldToObject, v0);
+
+	//compute the world space normal as the cross product of the Z and the X vector
+	float3 wsn = cross((v2 - v0).xyz, (v1 - v0).xyz);
+	//float3 wsn = cross((v1 - v0).xyz, (v2 - v0).xyz);
+	//wsn.y *= -1;
+	//return the computed object space normal for this vertex
+	return normalize(mul((float3x3)unity_WorldToObject, wsn));
+
+	//normalize and store the computed object space normal for this vertex, accounting for object_space normal direction
+	//float3 normal = reorient_normal_map(float3(0,0,1), mul((float3x3)unity_WorldToObject, wsn));
+
+	//retutn normal;
 }
-#endif
 
 //NOTE: this function assumes coord param as a direction, thus pre-normalized
 //in order to save a sqrt(x*x + y*y + z*z) instruction

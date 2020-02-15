@@ -1,6 +1,16 @@
 ﻿#ifndef BLEND_MODES
 #define BLEND_MODES
 
+inline float soft_light(float base_color, float layer_color)
+{
+	return (1.0 - 2.0 * layer_color) * (base_color * base_color) + 2.0 * base_color * layer_color;
+}
+
+inline float2 soft_light(float2 base_color, float2 layer_color)
+{
+	return (float2(1.0, 1.0) - 2.0 * layer_color) * (base_color * base_color) + 2.0 * base_color * layer_color;
+}
+
 inline float3 soft_light(float3 base_color, float3 layer_color)
 {
 	return (float3(1.0, 1.0, 1.0) - 2.0 * layer_color) * (base_color * base_color) + 2.0 * base_color * layer_color;

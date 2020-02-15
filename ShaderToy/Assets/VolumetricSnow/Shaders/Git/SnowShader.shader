@@ -155,7 +155,7 @@
 			
 			float2 worldSpaceUV = v0.xz * _SnowTilingF;
 			fixed4 h_mixmap = texture_tiler_lod(_HSnowMixMap, worldSpaceUV, _NoiseOffset, _NoiseTex, 0);
-			float min_snow_height = clamp01(remap01(h_mixmap.b, 0.0, 1.0 - _TsnowGradientF)) * 0.15;
+			float min_snow_height = clamp01(remap_01(h_mixmap.b, 0.0, 1.0 - _TsnowGradientF)) * 0.15;
 
 			//account for minimum desired show height
 			d += min_snow_height * (1.0 - d);
